@@ -9,13 +9,13 @@ import time
 #draft of the boba stand protocol
 #using PCA9685 for LED control
 #using A4988 for stepper motor control, one motor for turntable and one for auger. Two GPIO pins for step, sharing direction pin for both motors
-#Also using PCA9685 for pumps and stirrer control
+#using 4 GPIO pins for DC motors: 3 for the pumps, 1 for the stirrer
 #using 4 GPIO pins for servo motors: one to lower stirrer, 3 for the mechanical arm
 TURNTABLE = 17
 AUGER = 27
 DIRECTION = 4
 TARO_PUMP = 22
-MATCHA_PUMP = 55 #Was originally 23
+MATCHA_PUMP = 23
 MILK_PUMP = 24
 STIRRER = 25
 STIRRER_SERVO = 5
@@ -24,12 +24,20 @@ JOINT_SERVO1 = 13
 JOINT_SERVO2 = 19
 
 GPIO.setmode(GPIO.BCM)
+GPIO.setup(TARO_PUMP, GPIO.OUT)
+GPIO.setup(MATCHA_PUMP, GPIO.OUT)
+GPIO.setup(MILK_PUMP, GPIO.OUT)
+GPIO.setup(STIRRER, GPIO.OUT)
 GPIO.setup(STIRRER_SERVO, GPIO.OUT)
 GPIO.setup(CLAW_SERVO, GPIO.OUT)
 GPIO.setup(JOINT_SERVO1, GPIO.OUT)
 GPIO.setup(JOINT_SERVO2, GPIO.OUT)
 
 #setting up PWM for the pumps and stirrer
+pump1 = GPIO.PWM(TARO_PUMP, 1000)
+pump2 = GPIO.PWM(MATCHA_PUMP, 1000)
+pump3 = GPIO.PWM(MILK_PUMP, 1000)
+stirrer= GPIO.PWM(STIRRER, 1000)
 stirrer_servo = GPIO.PWM(STIRRER_SERVO, 50)
 claw_servo = GPIO.PWM(CLAW_SERVO, 50)
 joint_servo1 = GPIO.PWM(JOINT_SERVO1, 50)
@@ -44,17 +52,6 @@ pca = PCA9685(i2c)
 pca.frequency = 1000  # Set the PWM frequency to 1 kHz
 #using pins 1-6 for the RGB LEDs
 #1-3 are for the flavor indicator, 4-6 are for the progress indicator
-#using pins 7-9 for the pumps and 10 for the stirrer
-RED1 = 1
-GREEN1 = 2
-BLUE1 = 3
-RED2 = 4
-GREEN2 = 5
-BLUE2 = 6
-PUMP_TARO = 7
-PUMP_MATCHA = 8
-PUMP_MILK = 9
-STIRRER = 10
 
 #colors
 colortaro = 0x8E0AF2
@@ -71,25 +68,25 @@ try:
     boba_amount = int(input("Enter amount of boba (100%, 50%, 25%, 0%): ").strip().replace("%", ""))
     if flavor_input == "taro":
         red, green, blue = LED.colorduty(colortaro)
-        pca.channels[RED1].duty_cycle = red * 65535 / 100
-        pca.channels[GREEN1].duty_cycle = green * 65535 / 100
-        pca.channels[BLUE1].duty_cycle = blue * 65535 / 100
+        pca.channels[0].duty_cycle = red * 65535 / 100
+        pca.channels[1].duty_cycle = green * 65535 / 100
+        pca.channels[2].duty_cycle = blue * 65535 / 100
     elif flavor_input == "matcha":
         red, green, blue = LED.colorduty(colormatcha)
-        pca.channels[RED1].duty_cycle = red * 65535 / 100
-        pca.channels[GREEN1].duty_cycle = green * 65535 / 100
-        pca.channels[BLUE1].duty_cycle = blue * 65535 / 100
+        pca.channels[0].duty_cycle = red * 65535 / 100
+        pca.channels[1].duty_cycle = green * 65535 / 100
+        pca.channels[2].duty_cycle = blue * 65535 / 100
     elif flavor_input == "milk":
         red, green, blue = LED.colorduty(colormilk)
-        pca.channels[RED1].duty_cycle = red * 65535 / 100
-        pca.channels[GREEN1].duty_cycle = green * 65535 / 100
-        pca.channels[BLUE1].duty_cycle = blue * 65535 / 100
+        pca.channels[0].duty_cycle = red * 65535 / 100
+        pca.channels[1].duty_cycle = green * 65535 / 100
+        pca.channels[2].duty_cycle = blue * 65535 / 100
 
     #starting the protocol, progress indicator will be red at the start
     red, green, blue = LED.colorduty(colorred)
-    pca.channels[RED2].duty_cycle = red * 65535 / 100
-    pca.channels[GREEN2].duty_cycle = green * 65535 / 100
-    pca.channels[BLUE2].duty_cycle = blue * 65535 / 100
+    pca.channels[3].duty_cycle = red * 65535 / 100
+    pca.channels[4].duty_cycle = green * 65535 / 100
+    pca.channels[5].duty_cycle = blue * 65535 / 100
 
     #turning the turntable by 90 degrees
     turntable.step(50)
@@ -106,30 +103,30 @@ try:
     turntable.step(50)
     #dispensing tea based on the flavor selected
     if flavor_input == "taro":
-        pca.channels[PUMP_TARO].duty_cycle = 65535
+        pump1.start(100)
         time.sleep(5)
-        pca.channels[PUMP_TARO].duty_cycle = 0
+        pump1.stop()
     elif flavor_input == "matcha":
-        pca.channels[PUMP_MATCHA].duty_cycle = 65535
+        pump2.start(100)
         time.sleep(5)
-        pca.channels[PUMP_MATCHA].duty_cycle = 0
+        pump2.stop()
     elif flavor_input == "milk":
-        pca.channels[PUMP_MILK].duty_cycle = 65535
+        pump3.start(100)
         time.sleep(5)
-        pca.channels[PUMP_MILK].duty_cycle = 0
+        pump3.stop()
     #switching progress indicator to yellow
     red, green, blue = LED.colorduty(coloryellow)
-    pca.channels[RED2].duty_cycle = red * 65535 / 100
-    pca.channels[GREEN2].duty_cycle = green * 65535 / 100
-    pca.channels[BLUE2].duty_cycle = blue * 65535 / 100
+    pca.channels[3].duty_cycle = red * 65535 / 100
+    pca.channels[4].duty_cycle = green * 65535 / 100
+    pca.channels[5].duty_cycle = blue * 65535 / 100
     #turning 90 degrees to the next position
     turntable.step(50)
     #lowering the stirring arm and starting the stirrer
     stirrer_servo.start(7.5)  #CHANGE THIS!!!!!! This is just a PLACeHOLDER!!!!!!!!
     time.sleep(1)  # Wait for the servo to move
-    pca.channels[STIRRER].duty_cycle = 65535  # Start the stirrer
+    stirrer.start(50)  # Start the stirrer
     time.sleep(5)  # Stir for 5 seconds
-    pca.channels[STIRRER].duty_cycle = 0  # Stop the stirrer
+    stirrer.stop()  # Stop the stirrer
     stirrer_servo.start(2.5)  #ALSO AN PLACEHOLDER!!!!!!!!!! PLEASE for the LOVE OF GOD CHANGE THIS!!!!!!!!!!!!!
     time.sleep(1)  # Wait for the servo to move
     #after this, we will need to determine the servo protocol to move the arm
@@ -141,10 +138,10 @@ try:
 finally:
     #cleaning up GPIO and stopping all PWM
     pca.deinit()
-    pca.channels[PUMP_TARO].duty_cycle = 0
-    pca.channels[PUMP_MATCHA].duty_cycle = 0
-    pca.channels[PUMP_MILK].duty_cycle = 0
-    pca.channels[STIRRER].duty_cycle = 0
+    pump1.stop()
+    pump2.stop()
+    pump3.stop()
+    stirrer.stop()
     stirrer_servo.stop()
     claw_servo.stop()
     joint_servo1.stop()
