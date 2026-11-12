@@ -1,7 +1,7 @@
 import RPi.GPIO as GPIO
 import time
 GPIO.setmode(GPIO.BCM)
-class Stepper:
+class A4988_Stepper:
     def __init__(self,DIR, STEP, slp):
         GPIO.setup(DIR, GPIO.OUT)
         GPIO.setup(STEP, GPIO.OUT)
@@ -26,7 +26,7 @@ class Stepper:
 
 
 if __name__ == "__main__":
-    myserv = Stepper(17, 27, 22)
+    myserv = A4988_Stepper(17, 27, 22)
     for _ in range(4):
         for _ in range(2* 50 * 8):
             myserv.step()
