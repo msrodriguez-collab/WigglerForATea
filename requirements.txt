@@ -1,0 +1,25 @@
+# Raspberry Pi I2S Microphone and Speech-to-Text Requirements
+
+# Core dependencies for Raspberry Pi
+adafruit-circuitpython-bus>=1.9.3
+adafruit-circuitpython-i2sout>=1.2.15
+adafruit-circuitpython-i2sin>=1.2.15
+
+# Audio processing
+numpy>=1.19.0
+soundfile>=0.11.0
+
+# Speech-to-Text options (choose what you need):
+
+# Option 1: Google Cloud Speech-to-Text (cloud-based, high accuracy)
+# google-cloud-speech>=2.16.0
+
+# Option 2: OpenAI Whisper API (cloud-based, excellent accuracy)
+# openai>=0.27.0
+
+# Option 3: Vosk (offline, local processing, no API key needed)
+# vosk>=0.3.45
+
+# Optional: For enhanced audio processing
+# librosa>=0.10.0
+# scipy>=1.7.0
