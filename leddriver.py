@@ -1,4 +1,6 @@
 
+#testing PWM for max all colors
+
 
 def colorduty(hex):
     '''
@@ -15,8 +17,4 @@ def colorduty(hex):
     green = int((greenvalue / 255) ** 2.8 * 100)
     blue = int((bluevalue / 255) ** 2.8 * 100)
     return red, green, blue
-
-
-
-
     
