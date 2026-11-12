@@ -1,8 +1,10 @@
 
+#testing PWM for max all colors
+
 
 def colorduty(hex):
     '''
-    Decodes a hexadecimal color code into red, green and blue brightness.
+    Defcodes a hexadecimal color code into red, green and blue brightness.
     Then, uses gamma correction to return the corresponding PWM for these brightnesses.
     hexadecimal formatting: 0xRRGGBB
     '''
@@ -15,8 +17,4 @@ def colorduty(hex):
     green = int((greenvalue / 255) ** 2.8 * 100)
     blue = int((bluevalue / 255) ** 2.8 * 100)
     return red, green, blue
-
-#testing PWM for max all colors
-
-
     
