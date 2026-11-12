@@ -1,13 +1,10 @@
 # Raspberry Pi I2S Microphone and Speech-to-Text Requirements
 
-# Core dependencies for Raspberry Pi
-adafruit-circuitpython-bus>=1.9.3
-adafruit-circuitpython-i2sout>=1.2.15
-adafruit-circuitpython-i2sin>=1.2.15
-
-# Audio processing
+# Core audio recording dependencies for Raspberry Pi
+sounddevice>=0.4.5
 numpy>=1.19.0
 soundfile>=0.11.0
+scipy>=1.7.0
 
 # Speech-to-Text options (choose what you need):
 
@@ -19,7 +16,9 @@ soundfile>=0.11.0
 
 # Option 3: Vosk (offline, local processing, no API key needed)
 # vosk>=0.3.45
+# pocketsphinx>=0.1.1
 
 # Optional: For enhanced audio processing
 # librosa>=0.10.0
-# scipy>=1.7.0
+# matplotlib>=3.3.0 (for plotting audio/spectrograms)
+

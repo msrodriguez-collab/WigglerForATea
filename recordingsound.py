@@ -1,58 +1,85 @@
 """
 Audio recording and speech-to-text conversion using Adafruit I2S MEMS microphone on Raspberry Pi.
+Uses ALSA drivers and sounddevice for hardware audio input.
 """
 
-import board
-import busio
-import adafruit_i2sout
-import adafruit_i2sin
 import numpy as np
+import sounddevice as sd
 import soundfile as sf
 from datetime import datetime
 import os
+import subprocess
+import time
 
 
 class I2SMicrophoneRecorder:
     """
     Handles recording audio from an Adafruit I2S MEMS microphone on Raspberry Pi.
     
-    Pin Configuration for Raspberry Pi:
-    - I2S_BCLK (Bit Clock) -> GPIO 18
-    - I2S_LRCLK (Left/Right Clock) -> GPIO 27
-    - I2S_DIN (Data In) -> GPIO 17
-    - GND -> GND
-    - VIN -> 5V or 3.3V (check your breakout specifications)
+    Hardware Setup:
+    - The I2S microphone should be registered as an ALSA audio device after GPIO/dtoverlay setup
+    - Pin Configuration for Raspberry Pi:
+      * I2S_BCLK (Bit Clock) -> GPIO 18
+      * I2S_LRCLK (Left/Right Clock) -> GPIO 27
+      * I2S_DIN (Data In) -> GPIO 17
+      * GND -> GND
+      * VIN -> 5V or 3.3V (check your breakout specifications)
+    
+    Device Configuration:
+    - Add to /boot/config.txt: dtoverlay=i2s-gpio18-27-17-24
+    - The device will appear as "hw:1,0" or similar after reboot
     """
     
-    def __init__(self, sample_rate=16000, sample_width=2, channels=1):
+    def __init__(self, sample_rate=16000, device=None, channels=1):
         """
         Initialize the I2S microphone recorder.
         
         Args:
             sample_rate (int): Sample rate in Hz (default: 16000 Hz)
-            sample_width (int): Sample width in bytes (default: 2 for 16-bit)
+            device (int or str): ALSA device ID (e.g., 1 for hw:1,0) or None to auto-detect
             channels (int): Number of audio channels (default: 1 for mono)
         """
         self.sample_rate = sample_rate
-        self.sample_width = sample_width
         self.channels = channels
+        self.device = device
         
+        # Auto-detect I2S device if not specified
+        if device is None:
+            self.device = self._find_i2s_device()
+        
+        print(f"I2S microphone initialized:")
+        print(f"  Sample rate: {sample_rate} Hz")
+        print(f"  Channels: {channels}")
+        print(f"  Device: hw:{self.device},0 (index {self.device})")
+    
+    def _find_i2s_device(self):
+        """
+        Auto-detect I2S device from ALSA.
+        
+        Returns:
+            int: Device index, defaults to 1 if detection fails
+        """
         try:
-            # Initialize I2S interface
-            i2s = board.I2S(
-                bit_clock=board.GP18,
-                word_select=board.GP27,
-                data=board.GP17,
-                sample_rate=sample_rate,
-                bits_per_sample=sample_width * 8,
-                mono=True if channels == 1 else False,
-                left_justified=False
+            result = subprocess.run(
+                ['arecord', '-l'],
+                capture_output=True,
+                text=True,
+                timeout=5
             )
-            self.i2s = i2s
-            print(f"I2S microphone initialized: {sample_rate}Hz, {channels} channel(s)")
+            
+            lines = result.stdout.split('\n')
+            for line in lines:
+                if 'i2s' in line.lower() or 'bcm2835' in line.lower():
+                    parts = line.split()
+                    if parts and parts[0].startswith('card'):
+                        card_num = int(parts[0].split(':')[0].replace('card', ''))
+                        print(f"Auto-detected I2S device: hw:{card_num},0")
+                        return card_num
         except Exception as e:
-            print(f"Error initializing I2S: {e}")
-            self.i2s = None
+            print(f"Warning: Could not auto-detect I2S device: {e}")
+        
+        print("Using default device 1. If recording fails, specify device manually.")
+        return 1
     
     def record(self, duration_seconds, output_file=None):
         """
@@ -65,25 +92,27 @@ class I2SMicrophoneRecorder:
         Returns:
             tuple: (audio_data as numpy array, sample_rate)
         """
-        if self.i2s is None:
-            raise RuntimeError("I2S microphone not initialized")
-        
         num_samples = int(self.sample_rate * duration_seconds)
         
-        print(f"Recording for {duration_seconds} seconds...")
+        print(f"\nRecording for {duration_seconds} seconds...")
         
         try:
-            # Record audio
-            audio_data = bytearray(num_samples * self.sample_width * self.channels)
-            self.i2s.readinto(audio_data)
+            # Record using sounddevice
+            audio_data = sd.rec(
+                num_samples,
+                samplerate=self.sample_rate,
+                channels=self.channels,
+                dtype=np.int16,
+                device=self.device
+            )
             
-            # Convert byte data to numpy array
-            audio_array = np.frombuffer(audio_data, dtype=np.int16)
+            # Wait for recording to complete
+            sd.wait()
             
-            # Normalize audio to [-1, 1] range for processing
-            audio_normalized = audio_array.astype(np.float32) / 32768.0
+            # Convert to float32 and normalize [-1, 1]
+            audio_normalized = audio_data.astype(np.float32) / 32768.0
             
-            print(f"Recording complete: {len(audio_array)} samples")
+            print(f"Recording complete: {len(audio_normalized)} samples ({duration_seconds}s)")
             
             # Save to file if requested
             if output_file:
@@ -94,12 +123,12 @@ class I2SMicrophoneRecorder:
         
         except Exception as e:
             print(f"Error during recording: {e}")
+            print("Troubleshooting tips:")
+            print("  1. Run 'arecord -l' to list available audio devices")
+            print("  2. Check that I2S is enabled in raspi-config")
+            print("  3. Verify GPIO connections")
+            print("  4. Try specifying device manually: recorder = I2SMicrophoneRecorder(device=1)")
             return None, None
-    
-    def close(self):
-        """Close the I2S interface."""
-        if self.i2s:
-            self.i2s.deinit()
 
 
 class SpeechToTextConverter:
@@ -267,7 +296,7 @@ class SpeechToTextConverter:
 def main():
     """Example usage of audio recording and speech-to-text conversion."""
     
-    # Initialize the recorder
+    # Initialize the recorder (auto-detects I2S device)
     recorder = I2SMicrophoneRecorder(sample_rate=16000)
     
     # Record 5 seconds of audio
@@ -275,7 +304,6 @@ def main():
     output_filename = f"recording_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav"
     
     audio_data, sample_rate = recorder.record(duration, output_filename)
-    recorder.close()
     
     if audio_data is not None:
         print("\n--- Audio Recording Complete ---")
