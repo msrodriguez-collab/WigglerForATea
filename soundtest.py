@@ -1,9 +1,16 @@
 """
 Minimal I2S microphone test script.
 """
-import sounddevice as sd
-import numpy as np
-import time
+try:
+    import sounddevice as sd
+    import numpy as np
+    import time
+except ImportError as e:
+    print(f"Missing Python dependencies: {e}")
+    print("Please install the required packages:")
+    print("For Raspberry Pi: sudo apt update && sudo apt install python3-pip libasound-dev")
+    print("Then: pip3 install sounddevice numpy")
+    exit(1)
 
 def test_microphone():
     """Test basic microphone recording."""
@@ -37,9 +44,12 @@ def test_microphone():
         print(f"Error: {e}")
         print("Common fixes:")
         print("1. Ensure I2S overlay is configured in /boot/config.txt")
-        print("2. Run 'sudo apt update && sudo apt install libasound-dev'")
+        print("   Add: dtoverlay=i2s-gpio18-27-17-24")
+        print("2. Install required packages:")
+        print("   sudo apt update && sudo apt install libasound-dev python3-pip")
+        print("   pip3 install sounddevice numpy")
         print("3. Check that the microphone is properly connected")
-        print("4. Try running with sudo")
+        print("4. Verify the I2S GPIO pin configuration matches your hardware")
 
 if __name__ == "__main__":
     test_microphone()

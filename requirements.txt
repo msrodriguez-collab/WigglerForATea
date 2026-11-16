@@ -8,6 +8,9 @@ scipy>=1.7.0
 
 # Speech-to-Text options (choose what you need):
 
+# Option 0: Google Web Speech API through SpeechRecognition (online)
+SpeechRecognition>=3.10.0
+
 # Option 1: Google Cloud Speech-to-Text (cloud-based, high accuracy)
 # google-cloud-speech>=2.16.0
 
@@ -32,6 +35,9 @@ soundfile>=0.11.0
 scipy>=1.7.0
 
 # Speech-to-Text options (choose what you need):
+
+# Option 0: Google Web Speech API through SpeechRecognition (online)
+SpeechRecognition>=3.10.0
 
 # Option 1: Google Cloud Speech-to-Text (cloud-based, high accuracy)
 # google-cloud-speech>=2.16.0
