@@ -43,13 +43,11 @@ def test_microphone():
     except Exception as e:
         print(f"Error: {e}")
         print("Common fixes:")
-        print("1. Ensure I2S overlay is configured in /boot/config.txt")
-        print("   Add: dtoverlay=i2s-gpio18-27-17-24")
-        print("2. Install required packages:")
-        print("   sudo apt update && sudo apt install libasound-dev python3-pip")
-        print("   pip3 install sounddevice numpy")
-        print("3. Check that the microphone is properly connected")
-        print("4. Verify the I2S GPIO pin configuration matches your hardware")
+        print("1. Check the I2S overlay and wiring in SETUP_GUIDE.md.")
+        print("   For the Adafruit SPH0645, use GPIO18/19/20.")
+        print("2. Check that sounddevice lists an input device above.")
+        print("3. Verify that the default input is the I2S microphone.")
+        print("4. See SETUP_GUIDE.md for virtual-environment dependencies.")
 
 if __name__ == "__main__":
     test_microphone()

@@ -7,27 +7,19 @@ import numpy as np
 import sounddevice as sd
 import soundfile as sf
 from datetime import datetime
-import os
-import subprocess
-import time
 
 
 class I2SMicrophoneRecorder:
     """
     Handles recording audio from an Adafruit I2S MEMS microphone on Raspberry Pi.
     
-    Hardware Setup:
-    - The I2S microphone should be registered as an ALSA audio device after GPIO/dtoverlay setup
-    - Pin Configuration for Raspberry Pi:
-      * I2S_BCLK (Bit Clock) -> GPIO 18
-      * I2S_LRCLK (Left/Right Clock) -> GPIO 27
-      * I2S_DIN (Data In) -> GPIO 17
-      * GND -> GND
-      * VIN -> 5V or 3.3V (check your breakout specifications)
-    
-    Device Configuration:
-    - Add to /boot/config.txt: dtoverlay=i2s-gpio18-27-17-24
-    - The device will appear as "hw:1,0" or similar after reboot
+    Uses PortAudio's default input device unless a PortAudio device index is
+    explicitly provided. This is intentionally different from ALSA card
+    numbering; use `sounddevice.query_devices()` to find PortAudio indices.
+
+    For the Adafruit SPH0645 breakout, the usual Raspberry Pi wiring is
+    BCLK -> GPIO18, LRCLK -> GPIO19, and DOUT -> GPIO20. Configure its sound
+    card in Raspberry Pi OS separately; see SETUP_GUIDE.md.
     """
     
     def __init__(self, sample_rate=16000, device=None, channels=1):
@@ -36,51 +28,49 @@ class I2SMicrophoneRecorder:
         
         Args:
             sample_rate (int): Sample rate in Hz (default: 16000 Hz)
-            device (int or str): ALSA device ID (e.g., 1 for hw:1,0) or None to auto-detect
+            device (int or str): PortAudio input device index or name. None uses
+                the system default input, as in soundtest.py.
             channels (int): Number of audio channels (default: 1 for mono)
         """
+        if sample_rate <= 0:
+            raise ValueError("sample_rate must be positive")
+        if channels <= 0:
+            raise ValueError("channels must be positive")
+
         self.sample_rate = sample_rate
         self.channels = channels
         self.device = device
-        
-        # Auto-detect I2S device if not specified
+
         if device is None:
-            self.device = self._find_i2s_device()
-        
+            default_device = sd.default.device[0]
+            print("Using PortAudio's default input device.")
+            if default_device is None or default_device < 0:
+                print("Available input devices:")
+                for index, info in enumerate(sd.query_devices()):
+                    if info["max_input_channels"] > 0:
+                        print(f"  {index}: {info['name']}")
+            else:
+                info = sd.query_devices(default_device)
+                print(f"  {default_device}: {info['name']}")
+        else:
+            info = sd.query_devices(device)
+            if info["max_input_channels"] < channels:
+                raise ValueError(
+                    f"Input device {device!r} supports only "
+                    f"{info['max_input_channels']} channel(s)"
+                )
+            print(f"Using PortAudio input device {device}: {info['name']}")
+
+        sd.check_input_settings(
+            device=device,
+            channels=channels,
+            dtype="int16",
+            samplerate=sample_rate,
+        )
         print(f"I2S microphone initialized:")
         print(f"  Sample rate: {sample_rate} Hz")
         print(f"  Channels: {channels}")
-        print(f"  Device: hw:{self.device},0 (index {self.device})")
-    
-    def _find_i2s_device(self):
-        """
-        Auto-detect I2S device from ALSA.
-        
-        Returns:
-            int: Device index, defaults to 1 if detection fails
-        """
-        try:
-            result = subprocess.run(
-                ['arecord', '-l'],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            
-            lines = result.stdout.split('\n')
-            for line in lines:
-                if 'i2s' in line.lower() or 'bcm2835' in line.lower():
-                    parts = line.split()
-                    if parts and parts[0].startswith('card'):
-                        card_num = int(parts[0].split(':')[0].replace('card', ''))
-                        print(f"Auto-detected I2S device: hw:{card_num},0")
-                        return card_num
-        except Exception as e:
-            print(f"Warning: Could not auto-detect I2S device: {e}")
-        
-        print("Using default device 1. If recording fails, specify device manually.")
-        return 1
-    
+
     def record(self, duration_seconds, output_file=None):
         """
         Record audio from the I2S microphone.
@@ -92,12 +82,14 @@ class I2SMicrophoneRecorder:
         Returns:
             tuple: (audio_data as numpy array, sample_rate)
         """
+        if duration_seconds <= 0:
+            raise ValueError("duration_seconds must be positive")
+
         num_samples = int(self.sample_rate * duration_seconds)
         
         print(f"\nRecording for {duration_seconds} seconds...")
         
         try:
-            # Record using sounddevice
             audio_data = sd.rec(
                 num_samples,
                 samplerate=self.sample_rate,
@@ -105,30 +97,18 @@ class I2SMicrophoneRecorder:
                 dtype=np.int16,
                 device=self.device
             )
-            
-            # Wait for recording to complete
             sd.wait()
-            
-            # Convert to float32 and normalize [-1, 1]
-            audio_normalized = audio_data.astype(np.float32) / 32768.0
-            
-            print(f"Recording complete: {len(audio_normalized)} samples ({duration_seconds}s)")
-            
-            # Save to file if requested
-            if output_file:
-                sf.write(output_file, audio_normalized, self.sample_rate)
-                print(f"Audio saved to: {output_file}")
-            
-            return audio_normalized, self.sample_rate
-        
         except Exception as e:
-            print(f"Error during recording: {e}")
-            print("Troubleshooting tips:")
-            print("  1. Run 'arecord -l' to list available audio devices")
-            print("  2. Check that I2S is enabled in raspi-config")
-            print("  3. Verify GPIO connections")
-            print("  4. Try specifying device manually: recorder = I2SMicrophoneRecorder(device=1)")
-            return None, None
+            raise RuntimeError(f"Audio capture failed: {e}") from e
+
+        audio_normalized = audio_data.astype(np.float32) / 32768.0
+        print(f"Recording complete: {len(audio_normalized)} samples ({duration_seconds}s)")
+
+        if output_file:
+            sf.write(output_file, audio_normalized, self.sample_rate)
+            print(f"Audio saved to: {output_file}")
+
+        return audio_normalized, self.sample_rate
 
 
 class SpeechToTextConverter:
@@ -166,13 +146,15 @@ class SpeechToTextConverter:
         elif backend == "vosk":
             try:
                 from vosk import Model, KaldiRecognizer
-                import json
                 self.model = Model(lang="en-us")
-                self.recognizer = KaldiRecognizer(self.model, 16000)
+                self.recognizer_class = KaldiRecognizer
                 print("Vosk offline speech recognition initialized")
             except ImportError:
-                print("Warning: vosk not installed for offline recognition")
-                self.model = None
+                raise ImportError(
+                    "Vosk backend selected but not installed; run `pip install vosk`"
+                ) from None
+        else:
+            raise ValueError(f"Unsupported speech-to-text backend: {backend}")
     
     def transcribe_google(self, audio_file):
         """
@@ -250,20 +232,29 @@ class SpeechToTextConverter:
         if not hasattr(self, 'model') or self.model is None:
             return "Error: Vosk model not initialized"
         
-        try:
-            import json
-            
-            audio_bytes = (audio_array * 32768).astype(np.int16).tobytes()
-            
-            if self.recognizer.AcceptWaveform(audio_bytes):
-                result = json.loads(self.recognizer.Result())
-                return result.get("result", [{}])[0].get("conf", 0)
-            else:
-                partial_result = json.loads(self.recognizer.PartialResult())
-                return partial_result.get("partial", "")
-        
-        except Exception as e:
-            return f"Error in Vosk transcription: {e}"
+        if sample_rate <= 0:
+            raise ValueError("sample_rate must be positive")
+
+        import json
+
+        audio_int16 = np.clip(audio_array * 32768.0, -32768, 32767).astype(
+            np.int16
+        )
+        recognizer = self.recognizer_class(self.model, sample_rate)
+        segments = []
+        samples_per_chunk = 4000
+
+        for start in range(0, len(audio_int16), samples_per_chunk):
+            chunk = audio_int16[start:start + samples_per_chunk]
+            if recognizer.AcceptWaveform(chunk.tobytes()):
+                text = json.loads(recognizer.Result()).get("text", "")
+                if text:
+                    segments.append(text)
+
+        final_text = json.loads(recognizer.FinalResult()).get("text", "")
+        if final_text:
+            segments.append(final_text)
+        return " ".join(segments)
     
     def transcribe(self, audio_input):
         """
@@ -296,7 +287,7 @@ class SpeechToTextConverter:
 def main():
     """Example usage of audio recording and speech-to-text conversion."""
     
-    # Initialize the recorder (auto-detects I2S device)
+    # Use the same PortAudio default input as soundtest.py.
     recorder = I2SMicrophoneRecorder(sample_rate=16000)
     
     # Record 5 seconds of audio
@@ -305,29 +296,14 @@ def main():
     
     audio_data, sample_rate = recorder.record(duration, output_filename)
     
-    if audio_data is not None:
-        print("\n--- Audio Recording Complete ---")
-        print(f"File: {output_filename}")
-        print(f"Duration: {duration}s")
-        print(f"Sample Rate: {sample_rate} Hz")
-        
-        # Transcription examples (choose one based on your API key)
-        print("\n--- Speech-to-Text Conversion ---")
-        
-        # Option 1: Google Cloud Speech-to-Text (requires credentials)
-        # transcriber = SpeechToTextConverter(backend="google")
-        # text = transcriber.transcribe(output_filename)
-        # print(f"Google Transcription:\n{text}\n")
-        
-        # Option 2: OpenAI Whisper (requires API key)
-        # transcriber = SpeechToTextConverter(backend="openai")
-        # text = transcriber.transcribe(output_filename)
-        # print(f"OpenAI Transcription:\n{text}\n")
-        
-        # Option 3: Vosk offline (no API key needed)
-        transcriber = SpeechToTextConverter(backend="vosk")
-        text = transcriber.transcribe(audio_data)
-        print(f"Vosk Transcription:\n{text}\n")
+    print("\n--- Audio Recording Complete ---")
+    print(f"File: {output_filename}")
+    print(f"Duration: {duration}s")
+    print(f"Sample Rate: {sample_rate} Hz")
+
+    transcriber = SpeechToTextConverter(backend="vosk")
+    text = transcriber.transcribe_vosk(audio_data, sample_rate)
+    print(f"Vosk Transcription:\n{text}\n")
 
 
 if __name__ == "__main__":

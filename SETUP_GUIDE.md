@@ -164,13 +164,28 @@ An empty transcript can mean that no speech was recognized. Listen to the test
 recording first and try again in a quiet environment. Models for other
 languages are listed on the [Vosk models page](https://alphacephei.com/vosk/models).
 
-### Existing Python script
+### Using `recordingsound.py`
 
-`recordingsound.py` is an earlier experiment, not the tested workflow above.
-Its hardware comments and device auto-detection are unreliable, and its Vosk
-and cloud transcription paths need correction. In particular, an ALSA card
-number from `arecord -l` is not necessarily a `sounddevice` device index.
-Use the ALSA and Vosk steps above until the script has been updated and tested.
+The recorder uses the system's default PortAudio input, as `soundtest.py`
+does. It no longer guesses a PortAudio index from `arecord -l`—ALSA card
+numbers and PortAudio device indices are different. To choose another input,
+list devices with:
+
+```bash
+python -c "import sounddevice as sd; print(sd.query_devices())"
+```
+
+Then pass the listed **PortAudio index**:
+
+```python
+recorder = I2SMicrophoneRecorder(sample_rate=16000, device=2)
+```
+
+The `sounddevice` recording path and Vosk result handling have been aligned
+with the working test approach, but the complete script still needs to be
+tested on the Pi. First confirm the captured WAV contains audible speech. Its
+Google/OpenAI options may also need updates for your installed SDK versions;
+the standalone Vosk procedure above is the documented transcription path.
 
 ## Troubleshooting
 
