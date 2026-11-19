@@ -1,7 +1,7 @@
 from recordingsound import I2SMicrophoneRecorder, SpeechToTextConverter
 
 recorder = I2SMicrophoneRecorder(sample_rate=48000)
-transcriber = SpeechToTextConverter()
+transcriber = SpeechToTextConverter(backend="vosk")
 
 #testing ordering boba by recognizing key phrases in speech
 flavor = None
@@ -11,7 +11,7 @@ while flavor is None:
     print("Please speak clearly into the microphone.")
     print("You have 5 seconds to say your order.")
     audio_data, sample_rate = recorder.record(duration_seconds=5)
-    transcribed_text = transcriber.convert(audio_data, sample_rate)
+    transcribed_text = transcriber.transcribe(audio_data, sample_rate)
     print(f"Transcribed text: {transcribed_text}")
 
     # Check for key phrases related to boba flavors
@@ -33,7 +33,7 @@ while boba_amount is None:
     print("Please speak clearly into the microphone.")
     print("You have 5 seconds to say your order.")
     audio_data, sample_rate = recorder.record(duration_seconds=5)
-    transcribed_text = transcriber.convert(audio_data, sample_rate)
+    transcribed_text = transcriber.transcribe(audio_data, sample_rate)
     print(f"Transcribed text: {transcribed_text}")
     none_phrases = ["none", "no", "zero"]
     lesser_phrases = ["tiny", "few", "little", "less", "mini", "smallest"]
