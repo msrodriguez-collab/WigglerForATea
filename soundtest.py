@@ -17,7 +17,7 @@ def test_microphone():
     print("Testing I2S microphone...")
     
     # Test parameters
-    sample_rate = 16000
+    sample_rate = 48000
     duration = 3.0  # seconds
     
     try:
