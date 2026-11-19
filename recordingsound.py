@@ -288,7 +288,7 @@ def main():
     """Example usage of audio recording and speech-to-text conversion."""
     
     # Use the same PortAudio default input as soundtest.py.
-    recorder = I2SMicrophoneRecorder(sample_rate=16000)
+    recorder = I2SMicrophoneRecorder(sample_rate=48000)
     
     # Record 5 seconds of audio
     duration = 5.0

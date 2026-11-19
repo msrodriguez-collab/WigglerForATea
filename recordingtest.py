@@ -2,7 +2,7 @@ from recordingsound import I2SMicrophoneRecorder, SpeechToTextConverter
 from datetime import datetime
 
 # Initialize the recorder (auto-detects I2S device)
-recorder = I2SMicrophoneRecorder(sample_rate=16000)
+recorder = I2SMicrophoneRecorder(sample_rate=16000, device=0)
     
 # Record 5 seconds of audio
 duration = 5.0
