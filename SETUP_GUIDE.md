@@ -93,6 +93,25 @@ computer. Adafruit notes that this overlay uses a fixed 48 kHz hardware rate;
 `plughw` permits ALSA to perform format conversion when needed. If the file
 is silent, check wiring and the SEL channel before trying speech recognition.
 
+The existing `soundtest.py` only reporting “Recording successful” does not
+prove that non-silent audio was captured. The updated test script prints the
+default input device and signal levels, and saves `mic_test.wav`. Speak near
+the microphone while it records; a peak of `0` means the captured samples are
+all zero. A low nonzero peak can indicate a wrong input, quiet audio, or wiring
+issues.
+
+For comparison, inspect PortAudio's inputs and default device:
+
+```bash
+python -c "import sounddevice as sd; print('Default:', sd.default.device); print(sd.query_devices())"
+```
+
+If the default input isn't the I2S/VoiceHAT capture device, pass that device's
+PortAudio index to `I2SMicrophoneRecorder(device=INDEX)`. Do not use the ALSA
+card number as the PortAudio index. You can also isolate the hardware from
+Python by recording with the ALSA `arecord` command above and checking that
+file's signal level.
+
 ## 4. Set up Python
 
 Modern Raspberry Pi OS protects its system Python environment. Install project

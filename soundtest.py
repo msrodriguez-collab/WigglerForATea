@@ -4,7 +4,7 @@ Minimal I2S microphone test script.
 try:
     import sounddevice as sd
     import numpy as np
-    import time
+    import wave
 except ImportError as e:
     print(f"Missing Python dependencies: {e}")
     print("Please install the required packages:")
@@ -27,6 +27,7 @@ def test_microphone():
         for i, device in enumerate(devices):
             if device['max_input_channels'] > 0:
                 print(f"  {i}: {device['name']} (input)")
+        print(f"Default input device: {sd.default.device[0]}")
         
         # Try to record
         print(f"\nRecording {duration}s of audio...")
@@ -39,6 +40,22 @@ def test_microphone():
         sd.wait()
         print("Recording successful!")
         print(f"Captured {len(audio_data)} samples")
+        peak = int(np.max(np.abs(audio_data.astype(np.int32))))
+        rms = float(np.sqrt(np.mean(np.square(audio_data, dtype=np.float64))))
+        print(f"Input level: peak={peak}/32768, RMS={rms:.1f}/32768")
+
+        filename = "mic_test.wav"
+        with wave.open(filename, "wb") as recording:
+            recording.setnchannels(1)
+            recording.setsampwidth(2)
+            recording.setframerate(sample_rate)
+            recording.writeframes(audio_data.tobytes())
+        print(f"Saved diagnostic recording to {filename}")
+
+        if peak == 0:
+            print("The selected input returned only zero samples.")
+        elif peak < 100:
+            print("Signal is very low; check input selection, wiring, and microphone level.")
         
     except Exception as e:
         print(f"Error: {e}")

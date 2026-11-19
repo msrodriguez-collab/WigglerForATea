@@ -97,6 +97,16 @@ class I2SMicrophoneRecorder:
         except Exception as e:
             raise RuntimeError(f"Audio capture failed: {e}") from e
 
+        audio_int32 = audio_data.astype(np.int32)
+        peak = int(np.max(np.abs(audio_int32)))
+        rms = float(np.sqrt(np.mean(np.square(audio_int32, dtype=np.float64))))
+        print(f"Input level: peak={peak}/32768, RMS={rms:.1f}/32768")
+        if peak == 0:
+            print(
+                "Captured samples are all zero. Check the selected input device "
+                "and test the microphone with arecord as described in SETUP_GUIDE.md."
+            )
+
         audio_normalized = audio_data.astype(np.float32) / 32768.0
         print(f"Recording complete: {len(audio_normalized)} samples ({duration_seconds}s)")
 
