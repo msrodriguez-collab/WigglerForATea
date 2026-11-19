@@ -128,8 +128,9 @@ wget https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip
 unzip vosk-model-small-en-us-0.15.zip
 ```
 
-Convert the test recording to the mono, 16-bit, 16 kHz WAV format expected by
-this example:
+The Vosk example converts the test recording to mono, 16-bit, 16 kHz WAV.
+`recordingsound.py` does the sample-rate conversion in Python when passing
+48 kHz captured audio to Vosk.
 
 ```bash
 sox test.wav -c 1 -b 16 -e signed-integer speech.wav rate 16000
@@ -175,17 +176,20 @@ list devices with:
 python -c "import sounddevice as sd; print(sd.query_devices())"
 ```
 
-Then pass the listed **PortAudio index**:
+Then pass the listed **PortAudio index**. The recorder defaults to 48 kHz,
+matching the working `soundtest.py` and the I2S sound-card setup:
 
 ```python
-recorder = I2SMicrophoneRecorder(sample_rate=16000, device=2)
+recorder = I2SMicrophoneRecorder(sample_rate=48000, device=2)
 ```
 
-The `sounddevice` recording path and Vosk result handling have been aligned
-with the working test approach, but the complete script still needs to be
-tested on the Pi. First confirm the captured WAV contains audible speech. Its
-Google/OpenAI options may also need updates for your installed SDK versions;
-the standalone Vosk procedure above is the documented transcription path.
+`recordingsound.py` uses the same default-input capture call and 48 kHz rate as
+the working `soundtest.py`, then resamples the audio to 16 kHz for Vosk. If
+Vosk returns no words, first play the saved WAV to confirm it contains audible
+speech. The script prints an audio-level diagnostic when the transcript is
+empty. Its Google/OpenAI options may also need updates for your installed SDK
+versions; the standalone Vosk procedure above is the documented transcription
+path.
 
 ## Troubleshooting
 
