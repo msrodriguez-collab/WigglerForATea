@@ -8,6 +8,8 @@ import sounddevice as sd
 import soundfile as sf
 from datetime import datetime
 
+VOSK_SAMPLE_RATE = 16000
+
 
 class I2SMicrophoneRecorder:
     """
@@ -22,12 +24,12 @@ class I2SMicrophoneRecorder:
     card in Raspberry Pi OS separately; see SETUP_GUIDE.md.
     """
     
-    def __init__(self, sample_rate=16000, device=None, channels=1):
+    def __init__(self, sample_rate=48000, device=None, channels=1):
         """
         Initialize the I2S microphone recorder.
         
         Args:
-            sample_rate (int): Sample rate in Hz (default: 16000 Hz)
+            sample_rate (int): Sample rate in Hz (default: 48000 Hz)
             device (int or str): PortAudio input device index or name. None uses
                 the system default input, as in soundtest.py.
             channels (int): Number of audio channels (default: 1 for mono)
@@ -61,12 +63,6 @@ class I2SMicrophoneRecorder:
                 )
             print(f"Using PortAudio input device {device}: {info['name']}")
 
-        sd.check_input_settings(
-            device=device,
-            channels=channels,
-            dtype="int16",
-            samplerate=sample_rate,
-        )
         print(f"I2S microphone initialized:")
         print(f"  Sample rate: {sample_rate} Hz")
         print(f"  Channels: {channels}")
@@ -177,9 +173,10 @@ class SpeechToTextConverter:
                 audio_content = f.read()
             
             audio = RecognitionAudio(content=audio_content)
+            sample_rate = sf.info(audio_file).samplerate
             config = RecognitionConfig(
                 encoding=RecognitionConfig.AudioEncoding.LINEAR16,
-                sample_rate_hertz=16000,
+                sample_rate_hertz=sample_rate,
                 language_code="en-US",
             )
             
@@ -236,11 +233,25 @@ class SpeechToTextConverter:
             raise ValueError("sample_rate must be positive")
 
         import json
+        from math import gcd
+        from scipy.signal import resample_poly
 
-        audio_int16 = np.clip(audio_array * 32768.0, -32768, 32767).astype(
-            np.int16
+        audio = np.asarray(audio_array, dtype=np.float32)
+        if audio.ndim == 2:
+            audio = audio.mean(axis=1)
+        elif audio.ndim != 1:
+            raise ValueError("audio_array must be mono or have shape (frames, channels)")
+        if not audio.size:
+            return ""
+
+        divisor = gcd(sample_rate, VOSK_SAMPLE_RATE)
+        audio = resample_poly(
+            audio,
+            VOSK_SAMPLE_RATE // divisor,
+            sample_rate // divisor,
         )
-        recognizer = self.recognizer_class(self.model, sample_rate)
+        audio_int16 = np.clip(audio * 32768.0, -32768, 32767).astype("<i2")
+        recognizer = self.recognizer_class(self.model, VOSK_SAMPLE_RATE)
         segments = []
         samples_per_chunk = 4000
 
@@ -254,9 +265,18 @@ class SpeechToTextConverter:
         final_text = json.loads(recognizer.FinalResult()).get("text", "")
         if final_text:
             segments.append(final_text)
+        if not segments:
+            rms = float(np.sqrt(np.mean(np.square(audio, dtype=np.float64))))
+            peak = float(np.max(np.abs(audio)))
+            print(
+                "Vosk returned no words. Resampled audio level: "
+                f"RMS={rms:.4f}, peak={peak:.4f} (normalized)."
+            )
+            if peak < 0.01:
+                print("The recording is very quiet; check the saved WAV and microphone input.")
         return " ".join(segments)
     
-    def transcribe(self, audio_input):
+    def transcribe(self, audio_input, sample_rate=VOSK_SAMPLE_RATE):
         """
         Main transcription method that handles both file paths and audio arrays.
         
@@ -276,7 +296,7 @@ class SpeechToTextConverter:
         
         elif isinstance(audio_input, np.ndarray):
             if self.backend == "vosk":
-                return self.transcribe_vosk(audio_input, 16000)
+                return self.transcribe_vosk(audio_input, sample_rate)
             else:
                 return "Array input requires vosk backend"
         
@@ -288,7 +308,7 @@ def main():
     """Example usage of audio recording and speech-to-text conversion."""
     
     # Use the same PortAudio default input as soundtest.py.
-    recorder = I2SMicrophoneRecorder(sample_rate=16000)
+    recorder = I2SMicrophoneRecorder(sample_rate=48000)
     
     # Record 5 seconds of audio
     duration = 5.0
@@ -302,7 +322,7 @@ def main():
     print(f"Sample Rate: {sample_rate} Hz")
 
     transcriber = SpeechToTextConverter(backend="vosk")
-    text = transcriber.transcribe_vosk(audio_data, sample_rate)
+    text = transcriber.transcribe(audio_data, sample_rate=sample_rate)
     print(f"Vosk Transcription:\n{text}\n")
 
 
